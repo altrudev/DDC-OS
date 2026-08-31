@@ -1,0 +1,7 @@
+[package]
+name = "ddc-linux"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ddc-core = { path = "../ddc-core" }
