@@ -33,6 +33,8 @@ DDC-OS v0.x is deliberately fail-safe:
 - experimental scheduling must have a deterministic fallback path;
 - correctness wins over throughput.
 
+The v0.1 public gate does **not** accept caller-supplied `verified=true` style claims. Exact candidate output and exact dependency state are compared structurally, and admitted cache writes require an opaque permit bound to those exact values.
+
 ## Public / private boundary
 
 This repository is intended to be public.
@@ -41,7 +43,11 @@ It contains the **public DDC-OS contracts, architecture, benchmarks and implemen
 
 The public governor boundary is expressed as inputs, invariants and decisions. A conforming implementation may be open or proprietary as long as its observable contract is testable.
 
-See [`docs/PUBLIC_BOUNDARY.md`](docs/PUBLIC_BOUNDARY.md).
+See:
+
+- [`docs/PUBLIC_BOUNDARY.md`](docs/PUBLIC_BOUNDARY.md)
+- [`docs/DDC_GATES.md`](docs/DDC_GATES.md)
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
 ## v0.1 target
 
@@ -61,6 +67,45 @@ v0.1 will measure at minimum:
 - logical-channel throughput at 1 / 2 / 4 / 8 / 16 channels;
 - fallback/error rate;
 - semantic equivalence failures (must remain zero for accepted results).
+
+## First experiment
+
+The current benchmark uses an exactly decomposable workload with one large shared base and a small per-channel delta. The baseline reprocesses the shared base for every logical channel; the DDC path processes the base once and only processes each channel's delta separately.
+
+It tests logical channel counts of **1, 2, 4, 8 and 16** and hard-fails if baseline and DDC outputs differ.
+
+On a Rust-capable host:
+
+```bash
+cargo test --workspace
+cargo run -p ddc-bench --release
+```
+
+Optional workload sizing:
+
+```bash
+DDC_BENCH_BASE_WORDS=2000000 \
+DDC_BENCH_DELTA_WORDS=4096 \
+cargo run -p ddc-bench --release
+```
+
+The benchmark reports both measured wall-time speedup and **Computational Leverage Ratio (CLR)**. CLR is workload-specific and must not be represented as a physical increase in CPU frequency, core count, or channel capacity.
+
+## Current gate status
+
+| Gate | Status |
+|---|---|
+| Public/private disclosure boundary | PASS |
+| Architecture and fallback rules | PASS |
+| Structural exact-state admission design | PASS |
+| No spoofable `verified=true` cache insertion | PASS |
+| Source-level branch review | PASS |
+| Rust compile/test on a Rust-capable host | REQUIRED / NOT YET RUN |
+| Native benchmark on target old hardware | REQUIRED / NOT YET RUN |
+| Persistent compute store | BLOCKED until tests pass |
+| `sched_ext` canary | BLOCKED until user-space gates pass |
+| DAMON-driven policy changes | BLOCKED; observation only first |
+| GUI/compositor | LATER MILESTONE |
 
 ## Status
 
