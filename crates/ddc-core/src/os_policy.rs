@@ -12,35 +12,32 @@ pub enum EffectClass {
     ExternalEffect,
 }
 
-/// Security facts that an OS adapter must derive from the operating system,
-/// not from application claims.
+/// Security facts that a trusted OS adapter derives from kernel-observed state.
+///
+/// `principal` identifies the effective subject. `isolation_context` is a
+/// digest over the complete OS isolation facts selected by the adapter (for
+/// Linux v0.2: namespaces, LSM label, seccomp/no-new-privs state, and related
+/// process security metadata). `authority` remains explicit and structural.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SecurityContext {
     principal: ComputeId,
-    mount_namespace: ComputeId,
-    network_namespace: ComputeId,
-    ipc_namespace: ComputeId,
+    isolation_context: ComputeId,
     authority: AuthoritySet,
 }
 
 impl SecurityContext {
     /// Construct from facts observed by a trusted OS adapter.
     ///
-    /// This type is not itself an authentication mechanism. In production the
-    /// adapter is responsible for deriving these values from kernel-observed
-    /// state and for preventing applications from supplying them directly.
-    pub fn from_observed(
+    /// This type is not itself an authentication mechanism. Production code
+    /// must prevent applications from supplying these values directly.
+    pub fn from_trusted_observation(
         principal: ComputeId,
-        mount_namespace: ComputeId,
-        network_namespace: ComputeId,
-        ipc_namespace: ComputeId,
+        isolation_context: ComputeId,
         authority: AuthoritySet,
     ) -> Self {
         Self {
             principal,
-            mount_namespace,
-            network_namespace,
-            ipc_namespace,
+            isolation_context,
             authority,
         }
     }
@@ -51,9 +48,7 @@ impl SecurityContext {
             "os-security-context-v0.2",
             &[
                 self.principal.as_bytes(),
-                self.mount_namespace.as_bytes(),
-                self.network_namespace.as_bytes(),
-                self.ipc_namespace.as_bytes(),
+                self.isolation_context.as_bytes(),
                 authority.as_bytes(),
             ],
         )
@@ -241,12 +236,10 @@ mod tests {
         ComputeId::derive("os-policy-test", &[label.as_bytes()])
     }
 
-    fn security(principal: &str, authority: &[&str]) -> SecurityContext {
-        SecurityContext::from_observed(
+    fn security(principal: &str, isolation: &str, authority: &[&str]) -> SecurityContext {
+        SecurityContext::from_trusted_observation(
             id(principal),
-            id("mount-ns"),
-            id("network-ns"),
-            id("ipc-ns"),
+            id(isolation),
             AuthoritySet::new(authority.iter().copied()),
         )
     }
@@ -258,7 +251,7 @@ mod tests {
             shared_state: id("shared"),
             shared_dependency_state: id("shared-deps"),
             delta_state: id(delta),
-            security: security("principal-a", &["file:read:data"]),
+            security: security("principal-a", "isolation-a", &["file:read:data"]),
             effects: EffectClass::Pure,
             expected_resources: ResourceVector {
                 cpu_work_units: 1,
@@ -293,7 +286,17 @@ mod tests {
     fn refuses_cross_principal_sharing() {
         let a = task(1, "d1");
         let mut b = task(2, "d2");
-        b.security = security("principal-b", &["file:read:data"]);
+        b.security = security("principal-b", "isolation-a", &["file:read:data"]);
+        let proposal = propose_shared_delta(&[a, b], caps(64)).unwrap();
+        assert!(proposal.shared_delta_candidates.is_empty());
+        assert_eq!(proposal.baseline_tasks.len(), 2);
+    }
+
+    #[test]
+    fn refuses_cross_isolation_sharing() {
+        let a = task(1, "d1");
+        let mut b = task(2, "d2");
+        b.security = security("principal-a", "isolation-b", &["file:read:data"]);
         let proposal = propose_shared_delta(&[a, b], caps(64)).unwrap();
         assert!(proposal.shared_delta_candidates.is_empty());
         assert_eq!(proposal.baseline_tasks.len(), 2);
@@ -303,7 +306,11 @@ mod tests {
     fn refuses_authority_mismatch() {
         let a = task(1, "d1");
         let mut b = task(2, "d2");
-        b.security = security("principal-a", &["file:read:data", "network:connect"]);
+        b.security = security(
+            "principal-a",
+            "isolation-a",
+            &["file:read:data", "network:connect"],
+        );
         let proposal = propose_shared_delta(&[a, b], caps(64)).unwrap();
         assert!(proposal.shared_delta_candidates.is_empty());
         assert_eq!(proposal.baseline_tasks.len(), 2);
@@ -321,6 +328,17 @@ mod tests {
             .baseline_tasks
             .iter()
             .all(|task| task.reason == BaselineReason::NonPure));
+    }
+
+    #[test]
+    fn read_only_external_work_is_baseline_only_in_v02() {
+        let mut a = task(1, "d1");
+        let mut b = task(2, "d2");
+        a.effects = EffectClass::ReadOnlyExternal;
+        b.effects = EffectClass::ReadOnlyExternal;
+        let proposal = propose_shared_delta(&[a, b], caps(64)).unwrap();
+        assert!(proposal.shared_delta_candidates.is_empty());
+        assert_eq!(proposal.baseline_tasks.len(), 2);
     }
 
     #[test]
