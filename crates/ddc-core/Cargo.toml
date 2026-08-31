@@ -2,6 +2,3 @@
 name = "ddc-core"
 version.workspace = true
 edition.workspace = true
-
-[dependencies]
-sha2.workspace = true
