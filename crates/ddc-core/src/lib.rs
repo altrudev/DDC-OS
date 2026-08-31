@@ -6,13 +6,12 @@ mod channels;
 mod store;
 
 pub use admission::{
-    assess, AdmissionDecision, AdmissionInput, AuthoritySet, RejectReason,
-    VerificationEvidence,
+    admit_exact, dependency_state_id, AdmissionInput, AdmissionPermit, AuthoritySet, RejectReason,
 };
 pub use channels::{
     estimate_shared_delta_work, group_by_shared_state, ChannelDescriptor, WorkEstimate,
 };
-pub use store::VerifiedStore;
+pub use store::{StoreRejectReason, VerifiedStore};
 
 use sha2::{Digest, Sha256};
 
