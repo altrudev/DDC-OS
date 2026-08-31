@@ -68,9 +68,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("DDC-OS v0.2 Linux observation probe");
     println!("security_context={}", hex(security.identity()));
-    println!("effective_uid={}", snapshot.effective_uid);
-    println!("effective_gid={}", snapshot.effective_gid);
-    println!("namespace_count={}", snapshot.namespaces.len());
+    println!("effective_uid={}", snapshot.effective_uid());
+    println!("effective_gid={}", snapshot.effective_gid());
+    println!("namespace_count={}", snapshot.namespace_count());
     println!("candidate_groups={}", proposal.shared_delta_candidates.len());
     println!("largest_group={largest_group}");
     println!("baseline_tasks={}", proposal.baseline_tasks.len());
