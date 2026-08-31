@@ -16,21 +16,38 @@ const REQUIRED_NAMESPACES: [&str; 10] = [
     "uts",
 ];
 
+/// Opaque snapshot returned only by the Linux observation adapter.
+///
+/// Fields stay private so callers cannot manufacture a value and present it as
+/// a procfs observation. This is defense-in-depth; proposal generation is still
+/// non-authoritative until a later DDC admission gate.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LinuxSecuritySnapshot {
-    pub effective_uid: u32,
-    pub effective_gid: u32,
-    pub supplementary_groups: Vec<u32>,
-    pub cap_effective: String,
-    pub cap_permitted: String,
-    pub cap_ambient: String,
-    pub no_new_privs: u8,
-    pub seccomp: u8,
-    pub lsm_label: String,
-    pub namespaces: BTreeMap<String, String>,
+    effective_uid: u32,
+    effective_gid: u32,
+    supplementary_groups: Vec<u32>,
+    cap_effective: String,
+    cap_permitted: String,
+    cap_ambient: String,
+    no_new_privs: u8,
+    seccomp: u8,
+    lsm_label: String,
+    namespaces: BTreeMap<String, String>,
 }
 
 impl LinuxSecuritySnapshot {
+    pub fn effective_uid(&self) -> u32 {
+        self.effective_uid
+    }
+
+    pub fn effective_gid(&self) -> u32 {
+        self.effective_gid
+    }
+
+    pub fn namespace_count(&self) -> usize {
+        self.namespaces.len()
+    }
+
     /// Convert a complete kernel observation into the public DDC-OS security
     /// context used for candidate grouping.
     pub fn security_context(&self) -> SecurityContext {
@@ -73,7 +90,7 @@ pub fn observe_self_security() -> io::Result<LinuxSecuritySnapshot> {
     let mut snapshot = parse_status(&status)?;
 
     snapshot.lsm_label = read_to_string("/proc/self/attr/current")?
-        .trim_end_matches(['\n', '\0'])
+        .trim_end_matches(|c| c == '\n' || c == '\0')
         .to_owned();
     if snapshot.lsm_label.is_empty() {
         return Err(Error::new(ErrorKind::InvalidData, "empty-lsm-label"));
