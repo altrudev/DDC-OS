@@ -4,6 +4,7 @@ use ddc_core::{
 use ddc_linux::observe_self_security;
 use std::error::Error;
 use std::fmt::Write as _;
+use std::io;
 
 fn id(label: &str) -> ComputeId {
     ComputeId::derive("ddc-linux-probe-v0.2", &[label.as_bytes()])
@@ -55,7 +56,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 transport_bytes: 0,
             },
         },
-    )?;
+    )
+    .map_err(|err| io::Error::other(format!("policy proposal failed: {err:?}")))?;
 
     let largest_group = proposal
         .shared_delta_candidates
