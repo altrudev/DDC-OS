@@ -15,9 +15,9 @@ pub enum EffectClass {
 /// Security facts that a trusted OS adapter derives from kernel-observed state.
 ///
 /// `principal` identifies the effective subject. `isolation_context` is a
-/// digest over the complete OS isolation facts selected by the adapter (for
-/// Linux v0.2: namespaces, LSM label, seccomp/no-new-privs state, and related
-/// process security metadata). `authority` remains explicit and structural.
+/// digest over the complete OS isolation facts selected by the adapter. The
+/// authority stored here describes the observed OS-level authority boundary;
+/// logical DDC/capsule authority is bound separately per execution descriptor.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SecurityContext {
     principal: ComputeId,
@@ -64,6 +64,10 @@ pub struct ExecutionDescriptor {
     pub shared_dependency_state: ComputeId,
     pub delta_state: ComputeId,
     pub security: SecurityContext,
+    /// Exact logical DDC/capsule authority for this task. This remains separate
+    /// from process-level Linux authority because multiple logical tasks in one
+    /// process may intentionally have different permissions.
+    pub task_authority: AuthoritySet,
     pub effects: EffectClass,
     /// A bounded planning estimate only. Actual execution must still be
     /// contained by kernel-enforced resource ceilings before promotion.
@@ -75,12 +79,13 @@ impl ExecutionDescriptor {
     ///
     /// Delta state is intentionally excluded: members may diverge in their
     /// per-channel delta. Exact executable, shared state, shared dependencies,
-    /// and security context must all match.
+    /// OS security context and logical task authority must all match.
     pub fn share_family(&self) -> Option<ComputeId> {
         if self.effects != EffectClass::Pure {
             return None;
         }
         let security = self.security.identity();
+        let task_authority = self.task_authority.identity();
         Some(ComputeId::derive(
             "os-share-family-v0.2",
             &[
@@ -88,6 +93,7 @@ impl ExecutionDescriptor {
                 self.shared_state.as_bytes(),
                 self.shared_dependency_state.as_bytes(),
                 security.as_bytes(),
+                task_authority.as_bytes(),
             ],
         ))
     }
@@ -140,7 +146,7 @@ pub struct PolicyProposal {
 ///
 /// This function is intentionally conservative:
 /// - only pure work can enter a candidate;
-/// - security context is part of the family identity;
+/// - OS security context and logical task authority are in the family identity;
 /// - duplicate task ids fail the whole proposal;
 /// - groups never exceed 64 members in v0.2;
 /// - resource-estimate overflow or cap pressure returns work to baseline.
@@ -251,7 +257,8 @@ mod tests {
             shared_state: id("shared"),
             shared_dependency_state: id("shared-deps"),
             delta_state: id(delta),
-            security: security("principal-a", "isolation-a", &["file:read:data"]),
+            security: security("principal-a", "isolation-a", &["linux:cap-a"]),
+            task_authority: AuthoritySet::new(["ddc:compute"]),
             effects: EffectClass::Pure,
             expected_resources: ResourceVector {
                 cpu_work_units: 1,
@@ -286,7 +293,7 @@ mod tests {
     fn refuses_cross_principal_sharing() {
         let a = task(1, "d1");
         let mut b = task(2, "d2");
-        b.security = security("principal-b", "isolation-a", &["file:read:data"]);
+        b.security = security("principal-b", "isolation-a", &["linux:cap-a"]);
         let proposal = propose_shared_delta(&[a, b], caps(64)).unwrap();
         assert!(proposal.shared_delta_candidates.is_empty());
         assert_eq!(proposal.baseline_tasks.len(), 2);
@@ -296,21 +303,31 @@ mod tests {
     fn refuses_cross_isolation_sharing() {
         let a = task(1, "d1");
         let mut b = task(2, "d2");
-        b.security = security("principal-a", "isolation-b", &["file:read:data"]);
+        b.security = security("principal-a", "isolation-b", &["linux:cap-a"]);
         let proposal = propose_shared_delta(&[a, b], caps(64)).unwrap();
         assert!(proposal.shared_delta_candidates.is_empty());
         assert_eq!(proposal.baseline_tasks.len(), 2);
     }
 
     #[test]
-    fn refuses_authority_mismatch() {
+    fn refuses_os_authority_mismatch() {
         let a = task(1, "d1");
         let mut b = task(2, "d2");
         b.security = security(
             "principal-a",
             "isolation-a",
-            &["file:read:data", "network:connect"],
+            &["linux:cap-a", "linux:cap-b"],
         );
+        let proposal = propose_shared_delta(&[a, b], caps(64)).unwrap();
+        assert!(proposal.shared_delta_candidates.is_empty());
+        assert_eq!(proposal.baseline_tasks.len(), 2);
+    }
+
+    #[test]
+    fn refuses_logical_task_authority_mismatch_inside_same_process() {
+        let a = task(1, "d1");
+        let mut b = task(2, "d2");
+        b.task_authority = AuthoritySet::new(["ddc:compute", "ddc:network"]);
         let proposal = propose_shared_delta(&[a, b], caps(64)).unwrap();
         assert!(proposal.shared_delta_candidates.is_empty());
         assert_eq!(proposal.baseline_tasks.len(), 2);
