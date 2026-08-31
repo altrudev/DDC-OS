@@ -4,6 +4,7 @@
 mod admission;
 mod channels;
 mod os_policy;
+mod sha256;
 mod store;
 
 pub use admission::{
@@ -19,7 +20,7 @@ pub use os_policy::{
 };
 pub use store::{StoreRejectReason, VerifiedStore};
 
-use sha2::{Digest, Sha256};
+use sha256::Sha256;
 
 /// Stable identity for a computation or dependency.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -35,7 +36,7 @@ impl ComputeId {
         for part in parts {
             hash_part(&mut hasher, part);
         }
-        Self(hasher.finalize().into())
+        Self(hasher.finalize())
     }
 
     pub fn as_bytes(&self) -> &[u8; 32] {
@@ -44,7 +45,7 @@ impl ComputeId {
 }
 
 fn hash_part(hasher: &mut Sha256, bytes: &[u8]) {
-    hasher.update((bytes.len() as u64).to_le_bytes());
+    hasher.update(&(bytes.len() as u64).to_le_bytes());
     hasher.update(bytes);
 }
 
@@ -85,6 +86,16 @@ mod tests {
         let a = ComputeId::derive("test", &[b"ab", b"c"]);
         let b = ComputeId::derive("test", &[b"a", b"bc"]);
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn internal_hash_preserves_v01_compute_identity_bytes() {
+        let expected = [
+            0x08, 0x27, 0x2e, 0x03, 0x16, 0x18, 0xf3, 0xd4, 0xfd, 0xb0, 0xee, 0x90, 0x6e,
+            0x5d, 0xd8, 0x62, 0x06, 0x6b, 0x77, 0x3e, 0xfb, 0xde, 0x2a, 0x20, 0x41, 0x50,
+            0xce, 0x0e, 0x18, 0x5e, 0xfb, 0x0d,
+        ];
+        assert_eq!(ComputeId::derive("test", &[b"ab", b"c"]).as_bytes(), &expected);
     }
 
     #[test]
