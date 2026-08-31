@@ -1,0 +1,75 @@
+use ddc_core::{
+    propose_shared_delta, AuthoritySet, ComputeId, EffectClass, ExecutionDescriptor, PolicyCaps,
+    ResourceVector,
+};
+use ddc_linux::observe_self_security;
+use std::error::Error;
+use std::io;
+
+fn id(label: &str) -> ComputeId {
+    ComputeId::derive("ddc-linux-probe-v0.2", &[label.as_bytes()])
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let snapshot = observe_self_security()?;
+    let security = snapshot.security_context();
+
+    // Synthetic known-pure tasks exercise the OS policy boundary without
+    // classifying arbitrary legacy processes as pure.
+    let tasks: Vec<_> = (1..=64u64)
+        .map(|task_id| ExecutionDescriptor {
+            task_id,
+            executable: id("synthetic-pure-executable"),
+            shared_state: id("synthetic-shared-state"),
+            shared_dependency_state: id("synthetic-shared-dependencies"),
+            delta_state: ComputeId::derive(
+                "ddc-linux-probe-delta-v0.2",
+                &[&task_id.to_le_bytes()],
+            ),
+            security: security.clone(),
+            task_authority: AuthoritySet::new(["ddc:synthetic-pure-probe"]),
+            effects: EffectClass::Pure,
+            expected_resources: ResourceVector {
+                cpu_work_units: 1,
+                memory_bytes: 1,
+                io_bytes: 0,
+                transport_bytes: 0,
+            },
+        })
+        .collect();
+
+    let proposal = propose_shared_delta(
+        &tasks,
+        PolicyCaps {
+            max_group_members: 64,
+            group_resource_caps: ResourceVector {
+                cpu_work_units: 64,
+                memory_bytes: 64,
+                io_bytes: 0,
+                transport_bytes: 0,
+            },
+        },
+    )
+    .map_err(|err| io::Error::other(format!("policy proposal failed: {err:?}")))?;
+
+    let largest_group = proposal
+        .shared_delta_candidates
+        .iter()
+        .map(|candidate| candidate.task_ids.len())
+        .max()
+        .unwrap_or(0);
+
+    println!("DDC-OS v0.2 Linux observation probe");
+    println!("security_observation=complete");
+    println!("namespace_count={}", snapshot.namespace_count());
+    println!("candidate_groups={}", proposal.shared_delta_candidates.len());
+    println!("largest_group={largest_group}");
+    println!("baseline_tasks={}", proposal.baseline_tasks.len());
+    println!("kernel_writes=0");
+
+    if largest_group != 64 || !proposal.baseline_tasks.is_empty() {
+        return Err(io::Error::other("64-channel observation-only policy probe failed").into());
+    }
+
+    Ok(())
+}

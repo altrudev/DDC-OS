@@ -17,6 +17,21 @@ impl AuthoritySet {
     pub fn is_subset_of(&self, other: &Self) -> bool {
         self.0.is_subset(&other.0)
     }
+
+    /// Deterministic structural identity of the exact authority set.
+    ///
+    /// BTreeSet ordering plus explicit length framing makes this stable and
+    /// prevents ambiguous concatenation. The hash is an identity, not an
+    /// authorization token.
+    pub fn identity(&self) -> ComputeId {
+        let mut bytes = Vec::new();
+        for capability in &self.0 {
+            let raw = capability.as_bytes();
+            bytes.extend_from_slice(&(raw.len() as u64).to_le_bytes());
+            bytes.extend_from_slice(raw);
+        }
+        ComputeId::derive("authority-set-v0.2", &[bytes.as_slice()])
+    }
 }
 
 /// Canonical identity of an ordered exact dependency list.
@@ -124,6 +139,15 @@ mod tests {
                 transport_bytes: 20,
             },
         )
+    }
+
+    #[test]
+    fn authority_identity_is_order_independent_but_membership_sensitive() {
+        let a = AuthoritySet::new(["b", "a"]);
+        let b = AuthoritySet::new(["a", "b"]);
+        let c = AuthoritySet::new(["a", "c"]);
+        assert_eq!(a.identity(), b.identity());
+        assert_ne!(a.identity(), c.identity());
     }
 
     #[test]
