@@ -64,7 +64,7 @@ v0.1 will measure at minimum:
 - cache/reuse hit rate;
 - invalidation rate;
 - optimization overhead;
-- logical-channel throughput at 1 / 2 / 4 / 8 / 16 channels;
+- logical-channel throughput at 1 / 2 / 4 / 8 / 16 / 32 / 64 channels;
 - fallback/error rate;
 - semantic equivalence failures (must remain zero for accepted results).
 
@@ -72,7 +72,9 @@ v0.1 will measure at minimum:
 
 The current benchmark uses an exactly decomposable workload with one large shared base and a small per-channel delta. The baseline reprocesses the shared base for every logical channel; the DDC path processes the base once and only processes each channel's delta separately.
 
-It tests logical channel counts of **1, 2, 4, 8 and 16** and hard-fails if baseline and DDC outputs differ.
+It tests logical channel counts of **1, 2, 4, 8, 16, 32 and 64** and hard-fails if baseline and DDC outputs differ.
+
+The benchmark has explicit workload ceilings so an environment override cannot turn a performance test into an accidental memory-exhaustion event. Defaults remain intentionally modest for old hardware.
 
 On a Rust-capable host:
 
@@ -101,7 +103,7 @@ The benchmark reports both measured wall-time speedup and **Computational Levera
 | No spoofable `verified=true` cache insertion | PASS |
 | Source-level branch review | PASS |
 | Rust compile/test on a Rust-capable host | REQUIRED / NOT YET RUN |
-| Native benchmark on target old hardware | REQUIRED / NOT YET RUN |
+| Native 1→64 benchmark on target old hardware | REQUIRED / NOT YET RUN |
 | Persistent compute store | BLOCKED until tests pass |
 | `sched_ext` canary | BLOCKED until user-space gates pass |
 | DAMON-driven policy changes | BLOCKED; observation only first |
