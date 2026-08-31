@@ -1,5 +1,6 @@
 use ddc_core::{AuthoritySet, ComputeId, SecurityContext};
 use std::collections::BTreeMap;
+use std::fmt;
 use std::fs::{read_link, read_to_string};
 use std::io::{self, Error, ErrorKind};
 
@@ -21,7 +22,7 @@ const REQUIRED_NAMESPACES: [&str; 10] = [
 /// Fields stay private so callers cannot manufacture a value and present it as
 /// a procfs observation. This is defense-in-depth; proposal generation is still
 /// non-authoritative until a later DDC admission gate.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct LinuxSecuritySnapshot {
     uid: [u32; 4],
     gid: [u32; 4],
@@ -37,6 +38,18 @@ pub struct LinuxSecuritySnapshot {
     tracer_pid: u32,
     lsm_label: String,
     namespaces: BTreeMap<String, String>,
+}
+
+/// Deliberately redacted: raw procfs security identities must not leak through
+/// routine debug logging or public benchmark output.
+impl fmt::Debug for LinuxSecuritySnapshot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LinuxSecuritySnapshot")
+            .field("security_observation", &"redacted")
+            .field("namespace_count", &self.namespaces.len())
+            .field("traced", &(self.tracer_pid != 0))
+            .finish_non_exhaustive()
+    }
 }
 
 impl LinuxSecuritySnapshot {
@@ -233,6 +246,15 @@ Seccomp_filters:\t1\n";
         assert_eq!(parsed.no_new_privs, 1);
         assert_eq!(parsed.seccomp, 2);
         assert_eq!(parsed.seccomp_filters, 1);
+    }
+
+    #[test]
+    fn debug_output_is_redacted() {
+        let parsed = parse_status(STATUS).unwrap();
+        let debug = format!("{parsed:?}");
+        assert!(debug.contains("redacted"));
+        assert!(!debug.contains("1001"));
+        assert!(!debug.contains("0000000000000002"));
     }
 
     #[test]
