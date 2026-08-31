@@ -2,8 +2,12 @@ use ddc_core::estimate_shared_delta_work;
 use std::hint::black_box;
 use std::time::{Duration, Instant};
 
-const CHANNEL_COUNTS: [usize; 5] = [1, 2, 4, 8, 16];
+const CHANNEL_COUNTS: [usize; 7] = [1, 2, 4, 8, 16, 32, 64];
 const REPEATS: usize = 5;
+const DEFAULT_BASE_WORDS: usize = 2_000_000;
+const DEFAULT_DELTA_WORDS: usize = 4_096;
+const MAX_BASE_WORDS: usize = 16_000_000;
+const MAX_DELTA_WORDS: usize = 262_144;
 
 #[inline(never)]
 fn sum_words(words: &[u64]) -> u128 {
@@ -62,17 +66,28 @@ where
     best.expect("REPEATS is non-zero")
 }
 
-fn env_len(name: &str, default: usize) -> usize {
-    std::env::var(name)
-        .ok()
-        .and_then(|value| value.parse::<usize>().ok())
-        .filter(|&value| value > 0)
-        .unwrap_or(default)
+fn env_len(name: &str, default: usize, max: usize) -> usize {
+    match std::env::var(name) {
+        Ok(raw) => match raw.parse::<usize>() {
+            Ok(value) if (1..=max).contains(&value) => value,
+            _ => {
+                eprintln!(
+                    "ignoring unsafe {name}={raw:?}; allowed range is 1..={max}, using {default}"
+                );
+                default
+            }
+        },
+        Err(_) => default,
+    }
 }
 
 fn main() {
-    let base_len = env_len("DDC_BENCH_BASE_WORDS", 2_000_000);
-    let delta_len = env_len("DDC_BENCH_DELTA_WORDS", 4_096);
+    let base_len = env_len("DDC_BENCH_BASE_WORDS", DEFAULT_BASE_WORDS, MAX_BASE_WORDS);
+    let delta_len = env_len(
+        "DDC_BENCH_DELTA_WORDS",
+        DEFAULT_DELTA_WORDS,
+        MAX_DELTA_WORDS,
+    );
 
     println!("DDC-OS v0.1 shared-delta benchmark");
     println!("base_words={base_len} delta_words_per_channel={delta_len} repeats={REPEATS}");
@@ -85,7 +100,7 @@ fn main() {
             .map(|index| sequence(delta_len, 0xA11C_E000u64.wrapping_add(index as u64)))
             .collect();
 
-        // Warm both paths before timing.
+        // Warm both paths before timing and prove exact semantic equality.
         let warm_baseline = baseline(&base, &deltas);
         let warm_ddc = shared_delta(&base, &deltas);
         assert_eq!(warm_baseline, warm_ddc, "warm-up semantic mismatch");
@@ -95,7 +110,8 @@ fn main() {
         let verified = baseline_result == ddc_result;
         assert!(verified, "DDC result differs from baseline");
 
-        let estimate = estimate_shared_delta_work(channels as u64, base_len as u64, delta_len as u64);
+        let estimate =
+            estimate_shared_delta_work(channels as u64, base_len as u64, delta_len as u64);
         let time_speedup = baseline_time.as_secs_f64() / ddc_time.as_secs_f64();
 
         println!(
