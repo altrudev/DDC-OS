@@ -2,11 +2,17 @@
 //! Proprietary DDC internals are intentionally out of scope.
 
 mod admission;
+mod channels;
+mod store;
 
 pub use admission::{
     assess, AdmissionDecision, AdmissionInput, AuthoritySet, RejectReason,
     VerificationEvidence,
 };
+pub use channels::{
+    estimate_shared_delta_work, group_by_shared_state, ChannelDescriptor, WorkEstimate,
+};
+pub use store::VerifiedStore;
 
 use sha2::{Digest, Sha256};
 
