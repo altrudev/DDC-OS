@@ -48,13 +48,17 @@ A matching user id by itself is insufficient.
 
 The v0.2 Linux adapter reads its own procfs security state and derives identities from:
 
-- effective UID and GID;
+- all four Linux UID values (real, effective, saved-set and filesystem UID);
+- all four Linux GID values (real, effective, saved-set and filesystem GID);
 - supplementary groups;
-- effective/permitted/ambient Linux capability state;
+- inheritable, permitted, effective, bounding and ambient Linux capability sets;
 - LSM label;
 - `NoNewPrivs`;
-- seccomp mode;
-- cgroup, IPC, mount, network, PID, time, user, and UTS namespace identities, including child PID/time namespace identities.
+- seccomp mode and exposed seccomp filter count;
+- tracer state;
+- cgroup, IPC, mount, network, PID, time, user and UTS namespace identities, including child PID/time namespace identities.
+
+A traced process is not candidate-eligible in v0.2.
 
 The returned Linux snapshot is opaque outside the adapter.
 
@@ -65,6 +69,8 @@ Application-supplied "same security domain" flags are not accepted as evidence.
 Reading `/proc/<pid>` and later acting on that PID creates PID-reuse and time-of-check/time-of-use risk.
 
 Before DDC-OS observes another process for an authoritative decision, the adapter must bind observation to a stable process identity, such as a pidfd plus state revalidation or a stronger kernel-level mechanism.
+
+There is a second reason to remain conservative: procfs exposes seccomp mode and filter count, but not a complete cryptographic identity of the active filter program. Two different processes can therefore look superficially similar while being constrained by different filters. Before cross-process sharing is enabled, DDC-OS must obtain stronger kernel evidence for seccomp/LSM equivalence or treat that difference as non-shareable.
 
 v0.2 therefore observes only the current process.
 
@@ -135,7 +141,7 @@ Only after observation data and benchmark evidence justify it:
 
 - DAMON starts observation-only;
 - any memory-policy write gets an independent DDC transition and rollback gate;
-- system pressure, swap, I/O, and latency are measured together.
+- system pressure, swap, I/O and latency are measured together.
 
 ### F — Default-on policy
 
