@@ -1,6 +1,13 @@
 //! Public primitives for DDC-OS v0.1.
 //! Proprietary DDC internals are intentionally out of scope.
 
+mod admission;
+
+pub use admission::{
+    assess, AdmissionDecision, AdmissionInput, AuthoritySet, RejectReason,
+    VerificationEvidence,
+};
+
 use sha2::{Digest, Sha256};
 
 /// Stable identity for a computation or dependency.
