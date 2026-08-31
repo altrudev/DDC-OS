@@ -23,25 +23,29 @@ const REQUIRED_NAMESPACES: [&str; 10] = [
 /// non-authoritative until a later DDC admission gate.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LinuxSecuritySnapshot {
-    effective_uid: u32,
-    effective_gid: u32,
+    uid: [u32; 4],
+    gid: [u32; 4],
     supplementary_groups: Vec<u32>,
-    cap_effective: String,
+    cap_inheritable: String,
     cap_permitted: String,
+    cap_effective: String,
+    cap_bounding: String,
     cap_ambient: String,
     no_new_privs: u8,
     seccomp: u8,
+    seccomp_filters: u32,
+    tracer_pid: u32,
     lsm_label: String,
     namespaces: BTreeMap<String, String>,
 }
 
 impl LinuxSecuritySnapshot {
     pub fn effective_uid(&self) -> u32 {
-        self.effective_uid
+        self.uid[1]
     }
 
     pub fn effective_gid(&self) -> u32 {
-        self.effective_gid
+        self.gid[1]
     }
 
     pub fn namespace_count(&self) -> usize {
@@ -52,8 +56,12 @@ impl LinuxSecuritySnapshot {
     /// context used for candidate grouping.
     pub fn security_context(&self) -> SecurityContext {
         let mut principal = Vec::new();
-        principal.extend_from_slice(&self.effective_uid.to_le_bytes());
-        principal.extend_from_slice(&self.effective_gid.to_le_bytes());
+        for value in self.uid {
+            principal.extend_from_slice(&value.to_le_bytes());
+        }
+        for value in self.gid {
+            principal.extend_from_slice(&value.to_le_bytes());
+        }
         principal.extend_from_slice(&(self.supplementary_groups.len() as u64).to_le_bytes());
         for group in &self.supplementary_groups {
             principal.extend_from_slice(&group.to_le_bytes());
@@ -64,6 +72,7 @@ impl LinuxSecuritySnapshot {
         push_framed(&mut isolation, self.lsm_label.as_bytes());
         isolation.push(self.no_new_privs);
         isolation.push(self.seccomp);
+        isolation.extend_from_slice(&self.seccomp_filters.to_le_bytes());
         for (name, target) in &self.namespaces {
             push_framed(&mut isolation, name.as_bytes());
             push_framed(&mut isolation, target.as_bytes());
@@ -72,8 +81,10 @@ impl LinuxSecuritySnapshot {
             ComputeId::derive("linux-isolation-context-v0.2", &[isolation.as_slice()]);
 
         let authority = AuthoritySet::new([
-            format!("linux:cap-effective:{}", self.cap_effective),
+            format!("linux:cap-inheritable:{}", self.cap_inheritable),
             format!("linux:cap-permitted:{}", self.cap_permitted),
+            format!("linux:cap-effective:{}", self.cap_effective),
+            format!("linux:cap-bounding:{}", self.cap_bounding),
             format!("linux:cap-ambient:{}", self.cap_ambient),
         ]);
 
@@ -88,6 +99,13 @@ impl LinuxSecuritySnapshot {
 pub fn observe_self_security() -> io::Result<LinuxSecuritySnapshot> {
     let status = read_to_string("/proc/self/status")?;
     let mut snapshot = parse_status(&status)?;
+
+    if snapshot.tracer_pid != 0 {
+        return Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "traced-process-not-eligible",
+        ));
+    }
 
     snapshot.lsm_label = read_to_string("/proc/self/attr/current")?
         .trim_end_matches(|c| c == '\n' || c == '\0')
@@ -122,22 +140,26 @@ fn parse_status(status: &str) -> io::Result<LinuxSecuritySnapshot> {
         }
     }
 
-    let effective_uid = parse_effective_id(required(&fields, "Uid")?, "Uid")?;
-    let effective_gid = parse_effective_id(required(&fields, "Gid")?, "Gid")?;
+    let uid = parse_id_quad(required(&fields, "Uid")?, "Uid")?;
+    let gid = parse_id_quad(required(&fields, "Gid")?, "Gid")?;
     let supplementary_groups = required(&fields, "Groups")?
         .split_whitespace()
         .map(|value| parse_u32(value, "Groups"))
         .collect::<io::Result<Vec<_>>>()?;
 
     Ok(LinuxSecuritySnapshot {
-        effective_uid,
-        effective_gid,
+        uid,
+        gid,
         supplementary_groups,
-        cap_effective: required(&fields, "CapEff")?.to_owned(),
+        cap_inheritable: required(&fields, "CapInh")?.to_owned(),
         cap_permitted: required(&fields, "CapPrm")?.to_owned(),
+        cap_effective: required(&fields, "CapEff")?.to_owned(),
+        cap_bounding: required(&fields, "CapBnd")?.to_owned(),
         cap_ambient: required(&fields, "CapAmb")?.to_owned(),
         no_new_privs: parse_u8(required(&fields, "NoNewPrivs")?, "NoNewPrivs")?,
         seccomp: parse_u8(required(&fields, "Seccomp")?, "Seccomp")?,
+        seccomp_filters: parse_u32(required(&fields, "Seccomp_filters")?, "Seccomp_filters")?,
+        tracer_pid: parse_u32(required(&fields, "TracerPid")?, "TracerPid")?,
         lsm_label: String::new(),
         namespaces: BTreeMap::new(),
     })
@@ -150,13 +172,18 @@ fn required<'a>(fields: &'a BTreeMap<&str, &str>, key: &str) -> io::Result<&'a s
         .ok_or_else(|| Error::new(ErrorKind::InvalidData, format!("missing-{key}")))
 }
 
-fn parse_effective_id(value: &str, field: &str) -> io::Result<u32> {
-    let mut values = value.split_whitespace();
-    let _real = values.next();
-    let effective = values
-        .next()
-        .ok_or_else(|| Error::new(ErrorKind::InvalidData, format!("invalid-{field}")))?;
-    parse_u32(effective, field)
+fn parse_id_quad(value: &str, field: &str) -> io::Result<[u32; 4]> {
+    let values = value
+        .split_whitespace()
+        .map(|item| parse_u32(item, field))
+        .collect::<io::Result<Vec<_>>>()?;
+    if values.len() != 4 {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            format!("invalid-{field}"),
+        ));
+    }
+    Ok([values[0], values[1], values[2], values[3]])
 }
 
 fn parse_u32(value: &str, field: &str) -> io::Result<u32> {
@@ -181,24 +208,31 @@ mod tests {
     use super::*;
 
     const STATUS: &str = "\
+TracerPid:\t0\n\
 Uid:\t1000\t1001\t1002\t1003\n\
 Gid:\t2000\t2001\t2002\t2003\n\
 Groups:\t10 20 30\n\
+CapInh:\t0000000000000000\n\
 CapPrm:\t0000000000000001\n\
 CapEff:\t0000000000000002\n\
+CapBnd:\t0000000000000003\n\
 CapAmb:\t0000000000000004\n\
 NoNewPrivs:\t1\n\
-Seccomp:\t2\n";
+Seccomp:\t2\n\
+Seccomp_filters:\t1\n";
 
     #[test]
-    fn parses_effective_subject_and_security_flags() {
+    fn parses_complete_subject_and_security_flags() {
         let parsed = parse_status(STATUS).unwrap();
-        assert_eq!(parsed.effective_uid, 1001);
-        assert_eq!(parsed.effective_gid, 2001);
+        assert_eq!(parsed.uid, [1000, 1001, 1002, 1003]);
+        assert_eq!(parsed.gid, [2000, 2001, 2002, 2003]);
+        assert_eq!(parsed.effective_uid(), 1001);
+        assert_eq!(parsed.effective_gid(), 2001);
         assert_eq!(parsed.supplementary_groups, vec![10, 20, 30]);
         assert_eq!(parsed.cap_effective, "0000000000000002");
         assert_eq!(parsed.no_new_privs, 1);
         assert_eq!(parsed.seccomp, 2);
+        assert_eq!(parsed.seccomp_filters, 1);
     }
 
     #[test]
@@ -206,6 +240,16 @@ Seccomp:\t2\n";
         let status = STATUS.replace("CapAmb:\t0000000000000004\n", "");
         let err = parse_status(&status).unwrap_err();
         assert!(err.to_string().contains("missing-CapAmb"));
+    }
+
+    #[test]
+    fn malformed_identity_quad_fails_closed() {
+        let status = STATUS.replace(
+            "Uid:\t1000\t1001\t1002\t1003",
+            "Uid:\t1000\t1001\t1002",
+        );
+        let err = parse_status(&status).unwrap_err();
+        assert!(err.to_string().contains("invalid-Uid"));
     }
 
     #[test]
@@ -221,5 +265,20 @@ Seccomp:\t2\n";
         let mut c = a.clone();
         c.lsm_label = "apparmor-b".to_owned();
         assert_ne!(a.security_context().identity(), c.security_context().identity());
+    }
+
+    #[test]
+    fn filesystem_identity_or_capability_change_changes_security_identity() {
+        let mut a = parse_status(STATUS).unwrap();
+        a.lsm_label = "same".to_owned();
+        a.namespaces.insert("mnt".into(), "mnt:[1]".into());
+
+        let mut fsuid = a.clone();
+        fsuid.uid[3] += 1;
+        assert_ne!(a.security_context().identity(), fsuid.security_context().identity());
+
+        let mut caps = a.clone();
+        caps.cap_bounding = "ffffffffffffffff".to_owned();
+        assert_ne!(a.security_context().identity(), caps.security_context().identity());
     }
 }
