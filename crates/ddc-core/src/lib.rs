@@ -1,8 +1,9 @@
-//! Public primitives for DDC-OS v0.1.
+//! Public primitives for DDC-OS.
 //! Proprietary DDC internals are intentionally out of scope.
 
 mod admission;
 mod channels;
+mod os_policy;
 mod store;
 
 pub use admission::{
@@ -10,6 +11,11 @@ pub use admission::{
 };
 pub use channels::{
     estimate_shared_delta_work, group_by_shared_state, ChannelDescriptor, WorkEstimate,
+};
+pub use os_policy::{
+    propose_shared_delta, BaselineReason, BaselineTask, EffectClass, ExecutionDescriptor,
+    PolicyCaps, PolicyProposal, PolicyRejectReason, SecurityContext, SharedDeltaCandidate,
+    ABSOLUTE_MAX_GROUP_MEMBERS,
 };
 pub use store::{StoreRejectReason, VerifiedStore};
 
@@ -42,7 +48,7 @@ fn hash_part(hasher: &mut Sha256, bytes: &[u8]) {
     hasher.update(bytes);
 }
 
-/// Explicit resource dimensions for optimization admission.
+/// Explicit resource dimensions for optimization admission and planning.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ResourceVector {
     pub cpu_work_units: u64,
@@ -57,6 +63,16 @@ impl ResourceVector {
             && self.memory_bytes <= caps.memory_bytes
             && self.io_bytes <= caps.io_bytes
             && self.transport_bytes <= caps.transport_bytes
+    }
+
+    /// Overflow-safe aggregation for group planning.
+    pub fn checked_add(self, other: Self) -> Option<Self> {
+        Some(Self {
+            cpu_work_units: self.cpu_work_units.checked_add(other.cpu_work_units)?,
+            memory_bytes: self.memory_bytes.checked_add(other.memory_bytes)?,
+            io_bytes: self.io_bytes.checked_add(other.io_bytes)?,
+            transport_bytes: self.transport_bytes.checked_add(other.transport_bytes)?,
+        })
     }
 }
 
@@ -81,5 +97,20 @@ mod tests {
         };
         assert!(caps.within(caps));
         assert!(!ResourceVector { memory_bytes: 21, ..caps }.within(caps));
+    }
+
+    #[test]
+    fn resource_aggregation_detects_overflow() {
+        let maxed = ResourceVector {
+            cpu_work_units: u64::MAX,
+            memory_bytes: 0,
+            io_bytes: 0,
+            transport_bytes: 0,
+        };
+        let one = ResourceVector {
+            cpu_work_units: 1,
+            ..ResourceVector::default()
+        };
+        assert_eq!(maxed.checked_add(one), None);
     }
 }
