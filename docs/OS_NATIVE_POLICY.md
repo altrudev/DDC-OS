@@ -31,7 +31,7 @@ Legacy processes, unknown work, read-only external work, and externally side-eff
 
 "Read-only" is not treated as pure because external state can change between observations.
 
-### 2. Security equivalence is structural
+### 2. Security and authority equivalence are structural
 
 Sharing requires the same:
 
@@ -40,9 +40,12 @@ Sharing requires the same:
 - exact shared dependency state;
 - observed principal identity;
 - observed isolation-context identity;
-- exact authority-set identity.
+- exact OS-level authority identity;
+- exact logical DDC/capsule authority identity.
 
-A matching user id by itself is insufficient.
+The logical task authority remains separate from Linux process authority because multiple DDC-native tasks inside one process may intentionally hold different permissions.
+
+A matching user id or matching process by itself is insufficient.
 
 ### 3. Linux security facts come from the OS adapter
 
@@ -95,7 +98,7 @@ A duplicate task id causes the complete proposal operation to fail closed rather
 The `ddc-linux` crate includes an observation-only probe that:
 
 1. reads the probe process's actual Linux security context;
-2. constructs 64 synthetic tasks whose computation is explicitly known to be pure;
+2. constructs 64 synthetic tasks whose computation is explicitly known to be pure and whose logical DDC authority is explicit;
 3. asks the DDC OS policy for candidate grouping;
 4. requires one 64-member candidate and zero baseline tasks;
 5. reports `kernel_writes=0`.
@@ -109,6 +112,7 @@ DDC-OS must move through these states in order:
 ### A — Observation only (current)
 
 - derive OS security context;
+- bind logical DDC/capsule authority;
 - identify candidates;
 - make no kernel-control changes.
 
@@ -154,7 +158,7 @@ v0.2 does not:
 - replace the Linux scheduler;
 - hook syscalls;
 - deduplicate arbitrary process memory;
-- share results across security contexts;
+- share results across OS or logical authority contexts;
 - infer purity from application claims;
 - execute speculative side effects;
 - treat a candidate proposal as permission to run optimized code;
