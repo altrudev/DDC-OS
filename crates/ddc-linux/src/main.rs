@@ -1,5 +1,6 @@
 use ddc_core::{
-    propose_shared_delta, ComputeId, EffectClass, ExecutionDescriptor, PolicyCaps, ResourceVector,
+    propose_shared_delta, AuthoritySet, ComputeId, EffectClass, ExecutionDescriptor, PolicyCaps,
+    ResourceVector,
 };
 use ddc_linux::observe_self_security;
 use std::error::Error;
@@ -35,6 +36,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 &[&task_id.to_le_bytes()],
             ),
             security: security.clone(),
+            task_authority: AuthoritySet::new(["ddc:synthetic-pure-probe"]),
             effects: EffectClass::Pure,
             expected_resources: ResourceVector {
                 cpu_work_units: 1,
@@ -77,7 +79,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("kernel_writes=0");
 
     if largest_group != 64 || !proposal.baseline_tasks.is_empty() {
-        return Err("64-channel observation-only policy probe failed".into());
+        return Err(io::Error::other("64-channel observation-only policy probe failed").into());
     }
 
     Ok(())
