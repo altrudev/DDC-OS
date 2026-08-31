@@ -4,19 +4,10 @@ use ddc_core::{
 };
 use ddc_linux::observe_self_security;
 use std::error::Error;
-use std::fmt::Write as _;
 use std::io;
 
 fn id(label: &str) -> ComputeId {
     ComputeId::derive("ddc-linux-probe-v0.2", &[label.as_bytes()])
-}
-
-fn hex(id: ComputeId) -> String {
-    let mut out = String::with_capacity(64);
-    for byte in id.as_bytes() {
-        let _ = write!(out, "{byte:02x}");
-    }
-    out
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -69,9 +60,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .unwrap_or(0);
 
     println!("DDC-OS v0.2 Linux observation probe");
-    println!("security_context={}", hex(security.identity()));
-    println!("effective_uid={}", snapshot.effective_uid());
-    println!("effective_gid={}", snapshot.effective_gid());
+    println!("security_observation=complete");
     println!("namespace_count={}", snapshot.namespace_count());
     println!("candidate_groups={}", proposal.shared_delta_candidates.len());
     println!("largest_group={largest_group}");
