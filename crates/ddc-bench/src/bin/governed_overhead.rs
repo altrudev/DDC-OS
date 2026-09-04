@@ -77,7 +77,10 @@ fn validate_proposals(proposals: &[TransitionProposal]) {
         let decision = evaluate_transition(proposal.predecessor, proposal);
         assert_eq!(decision.disposition, TransitionDisposition::ShadowEligible);
         assert!(decision.closure.is_closed());
-        assert_eq!(decision.closure.changed, BTreeSet::from([Dimension::Frequency]));
+        assert_eq!(
+            decision.closure.changed,
+            BTreeSet::from([Dimension::Frequency])
+        );
     }
 }
 
@@ -125,10 +128,12 @@ fn time_materialize_and_gate(proposals: &[TransitionProposal], rounds: usize) ->
     start.elapsed()
 }
 
-fn nearest_rank(values: &mut [u128], percentile: usize) -> u128 {
-    values.sort_unstable();
-    let rank = ((percentile * values.len()) + 99) / 100;
-    values[rank.saturating_sub(1).min(values.len() - 1)]
+fn nearest_rank(values: &[u128], percentile: usize) -> u128 {
+    assert!(!values.is_empty());
+    let mut sorted = values.to_vec();
+    sorted.sort_unstable();
+    let rank = (percentile * sorted.len()).div_ceil(100);
+    sorted[rank.saturating_sub(1).min(sorted.len() - 1)]
 }
 
 fn per_candidate_ns(elapsed: Duration, evaluations: usize) -> u128 {
@@ -176,10 +181,10 @@ fn main() {
             materialized_samples.push(per_candidate_ns(materialized, evaluations));
         }
 
-        let gate_p50 = nearest_rank(&mut gate_samples.clone(), 50);
-        let gate_p95 = nearest_rank(&mut gate_samples, 95);
-        let materialized_p50 = nearest_rank(&mut materialized_samples.clone(), 50);
-        let materialized_p95 = nearest_rank(&mut materialized_samples, 95);
+        let gate_p50 = nearest_rank(&gate_samples, 50);
+        let gate_p95 = nearest_rank(&gate_samples, 95);
+        let materialized_p50 = nearest_rank(&materialized_samples, 50);
+        let materialized_p95 = nearest_rank(&materialized_samples, 95);
 
         println!(
             "{channels},{rounds},{gate_p50},{gate_p95},{materialized_p50},{materialized_p95},true"
