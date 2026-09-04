@@ -4,18 +4,18 @@ version = 4
 
 [[package]]
 name = "ddc-bench"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "ddc-core",
 ]
 
 [[package]]
 name = "ddc-core"
-version = "0.2.0"
+version = "0.3.0"
 
 [[package]]
 name = "ddc-linux"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "ddc-core",
 ]
