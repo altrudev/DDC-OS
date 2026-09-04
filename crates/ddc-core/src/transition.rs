@@ -37,6 +37,17 @@ pub struct TransitionDecision {
     pub closure: DimensionalClosure,
 }
 
+fn baseline_decision(
+    closure: &DimensionalClosure,
+    reason: TransitionReason,
+) -> TransitionDecision {
+    TransitionDecision {
+        disposition: TransitionDisposition::Baseline,
+        reason: Some(reason),
+        closure: closure.clone(),
+    }
+}
+
 /// Evaluate only whether a proposal may advance to bounded shadow execution.
 ///
 /// A successful result is deliberately `ShadowEligible`, never `Authorized`.
@@ -52,26 +63,26 @@ pub fn evaluate_transition(
         &proposal.permitted_changes,
     );
 
-    let baseline = |reason| TransitionDecision {
-        disposition: TransitionDisposition::Baseline,
-        reason: Some(reason),
-        closure: closure.clone(),
-    };
-
     if proposal.predecessor != expected_predecessor {
-        return baseline(TransitionReason::StalePredecessor);
+        return baseline_decision(&closure, TransitionReason::StalePredecessor);
     }
     if proposal.radial.subject != proposal.successor_candidate {
-        return baseline(TransitionReason::RadialSubjectMismatch);
+        return baseline_decision(&closure, TransitionReason::RadialSubjectMismatch);
     }
     if !closure.is_closed() {
-        return baseline(TransitionReason::DimensionalClosureViolation);
+        return baseline_decision(&closure, TransitionReason::DimensionalClosureViolation);
     }
 
     match proposal.radial.disposition() {
-        RadialDisposition::Insufficient => baseline(TransitionReason::RadialInsufficient),
-        RadialDisposition::Unresolved => baseline(TransitionReason::RadialUnresolved),
-        RadialDisposition::Contradictory => baseline(TransitionReason::RadialContradiction),
+        RadialDisposition::Insufficient => {
+            baseline_decision(&closure, TransitionReason::RadialInsufficient)
+        }
+        RadialDisposition::Unresolved => {
+            baseline_decision(&closure, TransitionReason::RadialUnresolved)
+        }
+        RadialDisposition::Contradictory => {
+            baseline_decision(&closure, TransitionReason::RadialContradiction)
+        }
         RadialDisposition::Consistent => TransitionDecision {
             disposition: TransitionDisposition::ShadowEligible,
             reason: None,
@@ -83,9 +94,7 @@ pub fn evaluate_transition(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        FrequencyObservation, RadialFinding, RadialSignal, ResourceVector,
-    };
+    use crate::{FrequencyObservation, RadialFinding, RadialSignal, ResourceVector};
 
     fn id(label: &str) -> ComputeId {
         ComputeId::derive("transition-test", &[label.as_bytes()])
