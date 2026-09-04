@@ -2,6 +2,7 @@
 name = "ddc-bench"
 version.workspace = true
 edition.workspace = true
+default-run = "ddc-bench"
 
 [dependencies]
 ddc-core = { path = "../ddc-core" }
