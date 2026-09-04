@@ -89,7 +89,7 @@ fn main() {
         MAX_DELTA_WORDS,
     );
 
-    println!("DDC-OS v0.1 shared-delta benchmark");
+    println!("DDC-OS v0.3 workspace / v0.1 shared-delta workload");
     println!("base_words={base_len} delta_words_per_channel={delta_len} repeats={REPEATS}");
     println!("channels,baseline_ms,ddc_ms,time_speedup,work_leverage,verified");
 
