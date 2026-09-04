@@ -3,9 +3,13 @@
 
 mod admission;
 mod channels;
+mod closure;
+mod dimensions;
 mod os_policy;
+mod radial;
 mod sha256;
 mod store;
+mod transition;
 
 pub use admission::{
     admit_exact, dependency_state_id, AdmissionInput, AdmissionPermit, AuthoritySet, RejectReason,
@@ -13,12 +17,19 @@ pub use admission::{
 pub use channels::{
     estimate_shared_delta_work, group_by_shared_state, ChannelDescriptor, WorkEstimate,
 };
+pub use closure::{evaluate_dimensional_closure, DimensionalClosure};
+pub use dimensions::{Dimension, DimensionalSnapshot, FrequencyObservation};
 pub use os_policy::{
     propose_shared_delta, BaselineReason, BaselineTask, EffectClass, ExecutionDescriptor,
     PolicyCaps, PolicyProposal, PolicyRejectReason, SecurityContext, SharedDeltaCandidate,
     ABSOLUTE_MAX_GROUP_MEMBERS,
 };
+pub use radial::{RadialDisposition, RadialEvidence, RadialFinding, RadialSignal};
 pub use store::{StoreRejectReason, VerifiedStore};
+pub use transition::{
+    evaluate_transition, TransitionDecision, TransitionDisposition, TransitionProposal,
+    TransitionReason,
+};
 
 use sha256::Sha256;
 
