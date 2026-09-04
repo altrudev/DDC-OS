@@ -6,6 +6,7 @@ mod channels;
 mod closure;
 mod dimensions;
 mod os_policy;
+mod profitability;
 mod radial;
 mod sha256;
 mod store;
@@ -23,6 +24,10 @@ pub use os_policy::{
     propose_shared_delta, BaselineReason, BaselineTask, EffectClass, ExecutionDescriptor,
     PolicyCaps, PolicyProposal, PolicyRejectReason, SecurityContext, SharedDeltaCandidate,
     ABSOLUTE_MAX_GROUP_MEMBERS,
+};
+pub use profitability::{
+    evaluate_profitability, ProfitabilityAction, ProfitabilityDecision, ProfitabilityEvidence,
+    ProfitabilityPolicy, ProfitabilityReason, ProfitabilityRejectReason, ProfitabilityState,
 };
 pub use radial::{RadialDisposition, RadialEvidence, RadialFinding, RadialSignal};
 pub use store::{StoreRejectReason, VerifiedStore};
