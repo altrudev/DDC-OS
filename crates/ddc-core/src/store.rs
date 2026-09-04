@@ -43,7 +43,10 @@ impl VerifiedStore {
 
         let artifact_id = ComputeId::derive(
             "verified-artifact-v0.1",
-            &[permit.output_id.as_bytes(), permit.dependency_state.as_bytes()],
+            &[
+                permit.output_id.as_bytes(),
+                permit.dependency_state.as_bytes(),
+            ],
         );
 
         self.entries.insert(
@@ -114,7 +117,10 @@ mod tests {
             .insert_admitted(&permit, vec![a], b"result".to_vec())
             .expect("permit is bound to result and dependency");
 
-        assert_eq!(store.get_if_current(artifact, &[a]), Some(b"result".as_slice()));
+        assert_eq!(
+            store.get_if_current(artifact, &[a]),
+            Some(b"result".as_slice())
+        );
         assert_eq!(store.get_if_current(artifact, &[b]), None);
     }
 

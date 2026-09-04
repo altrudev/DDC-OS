@@ -10,8 +10,7 @@ use std::time::{Duration, Instant};
 
 const CHANNEL_COUNTS: [usize; 7] = [1, 2, 4, 8, 16, 32, 64];
 const OVERLAP_BASIS_POINTS: [u32; 19] = [
-    0, 1, 2, 5, 10, 25, 50, 100, 200, 500, 1000, 2000, 4000, 6000, 8000, 9000, 9500,
-    9900, 10000,
+    0, 1, 2, 5, 10, 25, 50, 100, 200, 500, 1000, 2000, 4000, 6000, 8000, 9000, 9500, 9900, 10000,
 ];
 const SAMPLES: usize = 30;
 const TOTAL_WORDS_PER_CHANNEL: usize = 262_144;
@@ -69,9 +68,7 @@ fn sum_words(words: &[u64]) -> u128 {
 fn baseline(shared: &[u64], deltas: &[Vec<u64>]) -> Vec<u128> {
     deltas
         .iter()
-        .map(|delta| {
-            sum_words(black_box(shared)) + sum_words(black_box(delta.as_slice()))
-        })
+        .map(|delta| sum_words(black_box(shared)) + sum_words(black_box(delta.as_slice())))
         .collect()
 }
 
@@ -263,7 +260,7 @@ fn run_lane(case: &Case, lane: Lane) -> Duration {
 fn percentile_ns(values: &[u128], percentile: usize) -> u128 {
     let mut sorted = values.to_vec();
     sorted.sort_unstable();
-    let rank = ((percentile * sorted.len()) + 99) / 100;
+    let rank = (percentile * sorted.len()).div_ceil(100);
     sorted[rank.saturating_sub(1).min(sorted.len() - 1)]
 }
 
@@ -328,7 +325,10 @@ fn main() {
 
             let baseline_values: Vec<_> = samples.iter().map(|sample| sample.baseline_ns).collect();
             let raw_values: Vec<_> = samples.iter().map(|sample| sample.raw_ddc_ns).collect();
-            let governed_values: Vec<_> = samples.iter().map(|sample| sample.governed_ddc_ns).collect();
+            let governed_values: Vec<_> = samples
+                .iter()
+                .map(|sample| sample.governed_ddc_ns)
+                .collect();
             let baseline_p50 = percentile_ns(&baseline_values, 50);
             let baseline_p95 = percentile_ns(&baseline_values, 95);
             let raw_p50 = percentile_ns(&raw_values, 50);

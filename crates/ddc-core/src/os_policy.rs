@@ -367,18 +367,19 @@ mod tests {
         assert_eq!(proposal.shared_delta_candidates.len(), 1);
         assert_eq!(proposal.shared_delta_candidates[0].task_ids.len(), 64);
         assert_eq!(proposal.baseline_tasks.len(), 1);
-        assert_eq!(proposal.baseline_tasks[0].reason, BaselineReason::NoCompatiblePeer);
+        assert_eq!(
+            proposal.baseline_tasks[0].reason,
+            BaselineReason::NoCompatiblePeer
+        );
     }
 
     #[test]
     fn resource_pressure_splits_or_falls_back_instead_of_overcommitting() {
         let mut local_caps = caps(64);
         local_caps.group_resource_caps.memory_bytes = 2;
-        let proposal = propose_shared_delta(
-            &[task(1, "d1"), task(2, "d2"), task(3, "d3")],
-            local_caps,
-        )
-        .unwrap();
+        let proposal =
+            propose_shared_delta(&[task(1, "d1"), task(2, "d2"), task(3, "d3")], local_caps)
+                .unwrap();
         assert_eq!(proposal.shared_delta_candidates.len(), 1);
         assert_eq!(proposal.shared_delta_candidates[0].task_ids, vec![1, 2]);
         assert_eq!(proposal.baseline_tasks.len(), 1);

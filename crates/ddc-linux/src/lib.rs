@@ -121,7 +121,7 @@ pub fn observe_self_security() -> io::Result<LinuxSecuritySnapshot> {
     }
 
     snapshot.lsm_label = read_to_string("/proc/self/attr/current")?
-        .trim_end_matches(|c| c == '\n' || c == '\0')
+        .trim_end_matches(['\n', '\0'])
         .to_owned();
     if snapshot.lsm_label.is_empty() {
         return Err(Error::new(ErrorKind::InvalidData, "empty-lsm-label"));
@@ -132,7 +132,9 @@ pub fn observe_self_security() -> io::Result<LinuxSecuritySnapshot> {
         let target = target
             .to_str()
             .ok_or_else(|| Error::new(ErrorKind::InvalidData, "non-utf8-namespace-target"))?;
-        snapshot.namespaces.insert(name.to_owned(), target.to_owned());
+        snapshot
+            .namespaces
+            .insert(name.to_owned(), target.to_owned());
     }
 
     if snapshot.namespaces.len() != REQUIRED_NAMESPACES.len() {
@@ -266,10 +268,7 @@ Seccomp_filters:\t1\n";
 
     #[test]
     fn malformed_identity_quad_fails_closed() {
-        let status = STATUS.replace(
-            "Uid:\t1000\t1001\t1002\t1003",
-            "Uid:\t1000\t1001\t1002",
-        );
+        let status = STATUS.replace("Uid:\t1000\t1001\t1002\t1003", "Uid:\t1000\t1001\t1002");
         let err = parse_status(&status).unwrap_err();
         assert!(err.to_string().contains("invalid-Uid"));
     }
@@ -282,11 +281,17 @@ Seccomp_filters:\t1\n";
 
         let mut b = a.clone();
         b.namespaces.insert("mnt".into(), "mnt:[2]".into());
-        assert_ne!(a.security_context().identity(), b.security_context().identity());
+        assert_ne!(
+            a.security_context().identity(),
+            b.security_context().identity()
+        );
 
         let mut c = a.clone();
         c.lsm_label = "apparmor-b".to_owned();
-        assert_ne!(a.security_context().identity(), c.security_context().identity());
+        assert_ne!(
+            a.security_context().identity(),
+            c.security_context().identity()
+        );
     }
 
     #[test]
@@ -297,10 +302,16 @@ Seccomp_filters:\t1\n";
 
         let mut fsuid = a.clone();
         fsuid.uid[3] += 1;
-        assert_ne!(a.security_context().identity(), fsuid.security_context().identity());
+        assert_ne!(
+            a.security_context().identity(),
+            fsuid.security_context().identity()
+        );
 
         let mut caps = a.clone();
         caps.cap_bounding = "ffffffffffffffff".to_owned();
-        assert_ne!(a.security_context().identity(), caps.security_context().identity());
+        assert_ne!(
+            a.security_context().identity(),
+            caps.security_context().identity()
+        );
     }
 }

@@ -40,10 +40,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             executable: id("synthetic-pure-executable"),
             shared_state: id("synthetic-shared-state"),
             shared_dependency_state: id("synthetic-shared-dependencies"),
-            delta_state: ComputeId::derive(
-                "ddc-linux-probe-delta-v0.3",
-                &[&task_id.to_le_bytes()],
-            ),
+            delta_state: ComputeId::derive("ddc-linux-probe-delta-v0.3", &[&task_id.to_le_bytes()]),
             security: security.clone(),
             task_authority: task_authority.clone(),
             effects: EffectClass::Pure,
@@ -135,7 +132,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("DDC-OS v0.3 Linux observation probe");
     println!("security_observation=complete");
     println!("namespace_count={}", snapshot.namespace_count());
-    println!("candidate_groups={}", proposal.shared_delta_candidates.len());
+    println!(
+        "candidate_groups={}",
+        proposal.shared_delta_candidates.len()
+    );
     println!("largest_group={largest_group}");
     println!("baseline_tasks={}", proposal.baseline_tasks.len());
     println!("dimensions=8");

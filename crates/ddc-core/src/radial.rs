@@ -66,7 +66,8 @@ impl RadialEvidence {
             return RadialDisposition::Unresolved;
         }
 
-        let lenses: BTreeSet<Dimension> = self.findings.iter().map(|finding| finding.lens).collect();
+        let lenses: BTreeSet<Dimension> =
+            self.findings.iter().map(|finding| finding.lens).collect();
         if !self.findings.is_empty() && lenses.len() >= 2 {
             RadialDisposition::Consistent
         } else {

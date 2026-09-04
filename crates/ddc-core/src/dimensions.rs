@@ -162,7 +162,10 @@ mod tests {
         let before = snapshot();
         let mut after = before;
         after.frequency.event_count += 1;
-        assert_eq!(before.non_frequency_boundary_id(), after.non_frequency_boundary_id());
+        assert_eq!(
+            before.non_frequency_boundary_id(),
+            after.non_frequency_boundary_id()
+        );
         assert_eq!(
             before.changed_dimensions(&after),
             BTreeSet::from([Dimension::Frequency])

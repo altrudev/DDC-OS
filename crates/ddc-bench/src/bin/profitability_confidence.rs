@@ -85,9 +85,7 @@ fn sum_words(words: &[u64]) -> u128 {
 fn baseline(shared: &[u64], deltas: &[Vec<u64>]) -> Vec<u128> {
     deltas
         .iter()
-        .map(|delta| {
-            sum_words(black_box(shared)) + sum_words(black_box(delta.as_slice()))
-        })
+        .map(|delta| sum_words(black_box(shared)) + sum_words(black_box(delta.as_slice())))
         .collect()
 }
 
@@ -281,14 +279,14 @@ fn run_lane(case: &Case, lane: Lane) -> Duration {
 fn percentile_u128(values: &[u128], percentile: usize) -> u128 {
     let mut sorted = values.to_vec();
     sorted.sort_unstable();
-    let rank = ((percentile * sorted.len()) + 99) / 100;
+    let rank = (percentile * sorted.len()).div_ceil(100);
     sorted[rank.saturating_sub(1).min(sorted.len() - 1)]
 }
 
 fn percentile_f64(values: &[f64], percentile: usize) -> f64 {
     let mut sorted = values.to_vec();
     sorted.sort_by(|a, b| a.total_cmp(b));
-    let rank = ((percentile * sorted.len()) + 99) / 100;
+    let rank = (percentile * sorted.len()).div_ceil(100);
     sorted[rank.saturating_sub(1).min(sorted.len() - 1)]
 }
 
@@ -304,7 +302,7 @@ fn run_epoch(case: &Case, epoch: usize) -> EpochResult {
 
     let mut pairs = Vec::with_capacity(PAIRS_PER_EPOCH);
     for pair_index in 0..PAIRS_PER_EPOCH {
-        let baseline_first = (pair_index + epoch) % 2 == 0;
+        let baseline_first = (pair_index + epoch).is_multiple_of(2);
         let (baseline_ns, governed_ns) = if baseline_first {
             (
                 run_lane(case, Lane::Baseline).as_nanos(),

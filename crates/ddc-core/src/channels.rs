@@ -10,9 +10,7 @@ pub struct ChannelDescriptor {
 }
 
 /// Group channels only when their shared-state identity is exactly equal.
-pub fn group_by_shared_state(
-    channels: &[ChannelDescriptor],
-) -> BTreeMap<ComputeId, Vec<u32>> {
+pub fn group_by_shared_state(channels: &[ChannelDescriptor]) -> BTreeMap<ComputeId, Vec<u32>> {
     let mut groups = BTreeMap::<ComputeId, Vec<u32>>::new();
     for channel in channels {
         groups
@@ -67,9 +65,21 @@ mod tests {
         let shared = id("shared");
         let other = id("other");
         let channels = [
-            ChannelDescriptor { logical_id: 1, shared_state: shared, delta: id("d1") },
-            ChannelDescriptor { logical_id: 2, shared_state: shared, delta: id("d2") },
-            ChannelDescriptor { logical_id: 3, shared_state: other, delta: id("d3") },
+            ChannelDescriptor {
+                logical_id: 1,
+                shared_state: shared,
+                delta: id("d1"),
+            },
+            ChannelDescriptor {
+                logical_id: 2,
+                shared_state: shared,
+                delta: id("d2"),
+            },
+            ChannelDescriptor {
+                logical_id: 3,
+                shared_state: other,
+                delta: id("d3"),
+            },
         ];
         let groups = group_by_shared_state(&channels);
         assert_eq!(groups.get(&shared), Some(&vec![1, 2]));

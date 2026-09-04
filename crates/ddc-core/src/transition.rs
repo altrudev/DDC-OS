@@ -37,10 +37,7 @@ pub struct TransitionDecision {
     pub closure: DimensionalClosure,
 }
 
-fn baseline_decision(
-    closure: &DimensionalClosure,
-    reason: TransitionReason,
-) -> TransitionDecision {
+fn baseline_decision(closure: &DimensionalClosure, reason: TransitionReason) -> TransitionDecision {
     TransitionDecision {
         disposition: TransitionDisposition::Baseline,
         reason: Some(reason),

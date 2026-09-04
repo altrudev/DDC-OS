@@ -102,7 +102,10 @@ pub fn admit_exact(input: &AdmissionInput<'_>) -> Result<AdmissionPermit, Reject
         return Err(RejectReason::DependencyStateMismatch);
     }
 
-    if !input.candidate_authority.is_subset_of(input.baseline_authority) {
+    if !input
+        .candidate_authority
+        .is_subset_of(input.baseline_authority)
+    {
         return Err(RejectReason::AuthorityExpansion);
     }
 
@@ -186,7 +189,10 @@ mod tests {
             resource_caps,
         };
 
-        assert!(matches!(admit_exact(&input), Err(RejectReason::OutputMismatch)));
+        assert!(matches!(
+            admit_exact(&input),
+            Err(RejectReason::OutputMismatch)
+        ));
     }
 
     #[test]
